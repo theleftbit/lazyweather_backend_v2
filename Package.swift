@@ -19,6 +19,9 @@ let package = Package(
         
         // 🔵 Non-blocking, event-driven networking for Swift. Used for custom executors
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.65.0"),
+        
+            .package(url: "https://github.com/vapor/queues.git", from: "1.16.0"),
+            .package(url: "https://github.com/m-barthelemy/vapor-queues-fluent-driver.git", from: "3.0.0-beta1"),
     ],
     targets: [
         .executableTarget(
@@ -30,6 +33,8 @@ let package = Package(
                 .product(name: "Vapor", package: "vapor"),
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
+                .product(name: "Queues", package: "queues"),
+                .product(name: "QueuesFluentDriver", package: "vapor-queues-fluent-driver"),
             ],
             swiftSettings: swiftSettings
         ),

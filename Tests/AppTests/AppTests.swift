@@ -24,45 +24,52 @@ final class AppTests: XCTestCase {
         })
     }
     
-    func testTodoIndex() async throws {
-        let sampleTodos = [Todo(title: "sample1"), Todo(title: "sample2")]
-        try await sampleTodos.create(on: self.app.db)
+    func testPushRequestRegisted() async throws {
+        let userID = UUID()
+        let pushToken = "0000"
+        var _pushRequestID: PushRequest.IDValue?
         
-        try await self.app.test(.GET, "todos", afterResponse: { res async throws in
-            XCTAssertEqual(res.status, .ok)
-            XCTAssertEqual(
-                try res.content.decode([TodoDTO].self).sorted(by: { $0.title ?? "" < $1.title ?? "" }),
-                sampleTodos.map { $0.toDTO() }.sorted(by: { $0.title ?? "" < $1.title ?? "" })
+        /// First, we create a PushRequest
+        try self.app.test(.POST, "push_request", beforeRequest: { req in
+            let request = IncomingPushRequest(
+                userID: userID,
+                hour: 9,
+                minute: 30,
+                pushToken: pushToken
             )
+            try req.content.encode(request)
+        }, afterResponse: { res in
+            XCTAssert(res.status == .ok)
+            let response = try res.content.decode(PushRequest.self)
+            XCTAssert(response.userID == userID)
+            _pushRequestID = response.id
+            XCTAssertNotNil(_pushRequestID)
         })
-    }
-    
-    func testTodoCreate() async throws {
-        let newDTO = TodoDTO(id: nil, title: "test")
-        
-        try await self.app.test(.POST, "todos", beforeRequest: { req in
-            try req.content.encode(newDTO)
-        }, afterResponse: { res async throws in
-            XCTAssertEqual(res.status, .ok)
-            let models = try await Todo.query(on: self.app.db).all()
-            XCTAssertEqual(models.map { $0.toDTO().title }, [newDTO.title])
-        })
-    }
-    
-    func testTodoDelete() async throws {
-        let testTodos = [Todo(title: "test1"), Todo(title: "test2")]
-        try await testTodos.create(on: app.db)
-        
-        try await self.app.test(.DELETE, "todos/\(testTodos[0].requireID())", afterResponse: { res async throws in
-            XCTAssertEqual(res.status, .noContent)
-            let model = try await Todo.find(testTodos[0].id, on: self.app.db)
-            XCTAssertNil(model)
-        })
-    }
-}
 
-extension TodoDTO: Equatable {
-    public static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.id == rhs.id && lhs.title == rhs.title
+        /// Then, we change the time PushRequest
+        try self.app.test(.POST, "push_request", beforeRequest: { req in
+            let request = IncomingPushRequest(
+                userID: userID,
+                hour: 7,
+                minute: 30,
+                pushToken: pushToken
+            )
+            try req.content.encode(request)
+        }, afterResponse: { res in
+            XCTAssert(res.status == .ok)
+            let response = try res.content.decode(PushRequest.self)
+            XCTAssert(response.userID == userID)
+            let newPushRequestID = try XCTUnwrap(response.id)
+            XCTAssert(newPushRequestID == _pushRequestID)
+        })
+
+        /// Then we delete this PushRequest
+        try self.app.test(.DELETE, "push_request", beforeRequest: { req in
+            let request = IncomingDeleteRequest(userID: userID)
+            try req.content.encode(request)
+        }, afterResponse: { res in
+            XCTAssert(res.status == .accepted)
+        })
+
     }
 }
